@@ -146,8 +146,12 @@ namespace Commons.Music.Midi.Alsa {
 			if (sourcePort == null)
 				throw new ArgumentException ($"Port '{portId}' does not exist.");
 			var seq = new AlsaSequencer (AlsaIOType.Input, AlsaIOMode.NonBlocking);
+            Console.WriteLine($"Created new AlsaSequencer: {seq.Name} {seq}");
 			var appPort = CreateInputConnectedPort (seq, sourcePort.PortInfo);
-			return Task.FromResult<IMidiInput> (new AlsaMidiInput (seq, new AlsaMidiPortDetails (appPort), sourcePort));
+            Console.WriteLine($"Created connected input port: {appPort.Name} {appPort.Port} {appPort}");
+            var alsaMidiInput = new AlsaMidiInput(seq, new AlsaMidiPortDetails(appPort), sourcePort);
+            Console.WriteLine($"Created final ALSA MIDI input: {alsaMidiInput.Details.Name} {alsaMidiInput}");
+            return Task.FromResult<IMidiInput> (alsaMidiInput);
 		}
 
 		public Task<IMidiOutput> OpenOutputAsync (string portId)
@@ -193,10 +197,19 @@ namespace Commons.Music.Midi.Alsa {
 			this.port = appPort;
 			this.source_port = sourcePort;
 			byte [] buffer = new byte [0x200];
-			seq.StartListening (port.PortInfo.Port, buffer, (buf, start, len) => {
-				var args = new MidiReceivedEventArgs () { Data = buf, Start = start, Length = len, Timestamp = 0 };
-				MessageReceived (this, args);
-			});
+
+            try
+            {
+                seq.StartListening(port.PortInfo.Port, buffer, (buf, start, len) =>
+                {
+                    Console.WriteLine($"Received actual byte data on ALSA port! length {len}");
+                    var args = new MidiReceivedEventArgs() { Data = buf, Start = start, Length = len, Timestamp = 0 };
+                    MessageReceived(this, args);
+                });
+            } catch (Exception ex)
+            {
+                Console.WriteLine($"Error starting listening on ALSA sequencer: {port.PortInfo.Port} \n\n {ex.Message} \n\n {ex.InnerException} \n\n {ex.StackTrace}");
+            }
 		}
 
 		public IMidiPortDetails Details => source_port;
